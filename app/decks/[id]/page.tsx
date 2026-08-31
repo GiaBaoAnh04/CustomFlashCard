@@ -32,6 +32,12 @@ export default async function DeckHomePage({
       title: "Kiểm tra chính tả",
       description: "Luyện viết và kiểm tra khả năng nhớ chính xác từ.",
     },
+    {
+      href: `/decks/${id}/punish`,
+      icon: "✍",
+      title: "Chép phạt",
+      description: "Nhập từ cần học và số lần muốn chép để ghi nhớ.",
+    },
   ];
 
   return (

@@ -25,6 +25,22 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+function buildQuestions(pool: Word[], fullPool: Word[]): Question[] {
+  return shuffle(pool).map((w) => {
+    const distractorPool = fullPool
+      .filter((x) => x._id !== w._id)
+      .map((x) => x.meaning);
+
+    const distractors = shuffle(distractorPool).slice(0, 3);
+
+    return {
+      term: w.term,
+      correct: w.meaning,
+      options: shuffle([...distractors, w.meaning]),
+    };
+  });
+}
+
 export default function QuizPage({
   params,
 }: {
@@ -37,6 +53,7 @@ export default function QuizPage({
   const [qIdx, setQIdx] = useState(0);
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState<string | null>(null);
+  const [wrongWords, setWrongWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,22 +61,7 @@ export default function QuizPage({
       .then((r) => r.json())
       .then((data: Word[]) => {
         setWords(data);
-
-        const qs = shuffle(data).map((w) => {
-          const pool = data
-            .filter((x) => x._id !== w._id)
-            .map((x) => x.meaning);
-
-          const distractors = shuffle(pool).slice(0, 3);
-
-          return {
-            term: w.term,
-            correct: w.meaning,
-            options: shuffle([...distractors, w.meaning]),
-          };
-        });
-
-        setQuestions(qs);
+        setQuestions(buildQuestions(data, data));
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -101,6 +103,22 @@ export default function QuizPage({
   // Result
   if (qIdx >= questions.length) {
     const percentage = Math.round((score / questions.length) * 100);
+
+    function reviewWrong() {
+      setQuestions(buildQuestions(wrongWords, words));
+      setWrongWords([]);
+      setQIdx(0);
+      setScore(0);
+      setAnswered(null);
+    }
+
+    function retryAll() {
+      setQuestions(buildQuestions(words, words));
+      setWrongWords([]);
+      setQIdx(0);
+      setScore(0);
+      setAnswered(null);
+    }
 
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-4 py-8">
@@ -145,26 +163,63 @@ export default function QuizPage({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setQIdx(0);
-              setScore(0);
-              setAnswered(null);
-              setQuestions((current) => shuffle(current));
-            }}
-            className="
-              mt-6 w-full rounded-xl
-              bg-neutral-900 px-5 py-3.5
-              text-sm font-medium text-white
-              transition-all
-              hover:bg-neutral-800
-              hover:shadow-md
-              active:scale-[0.99]
-            "
-          >
-            Làm lại bài kiểm tra
-          </button>
+          {/* Wrong answers list */}
+          {wrongWords.length > 0 && (
+            <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-left">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-red-500">
+                Câu trả lời sai ({wrongWords.length})
+              </p>
+
+              <div className="mt-3 space-y-2">
+                {wrongWords.map((w) => (
+                  <div
+                    key={w._id}
+                    className="rounded-xl border border-red-100 bg-white px-4 py-2.5"
+                  >
+                    <p className="text-sm font-semibold text-neutral-900">
+                      {w.term}
+                    </p>
+                    <p className="text-xs text-neutral-500">{w.meaning}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            {wrongWords.length > 0 && (
+              <button
+                type="button"
+                onClick={reviewWrong}
+                className="
+                  flex-1 rounded-xl
+                  bg-neutral-900 px-5 py-3.5
+                  text-sm font-medium text-white
+                  transition-all
+                  hover:bg-neutral-800
+                  hover:shadow-md
+                  active:scale-[0.99]
+                "
+              >
+                Ôn lại {wrongWords.length} câu sai
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={retryAll}
+              className="
+                flex-1 rounded-xl
+                border border-neutral-200 bg-white px-5 py-3.5
+                text-sm font-medium text-neutral-700
+                transition-all
+                hover:border-neutral-400 hover:bg-neutral-50
+                active:scale-[0.99]
+              "
+            >
+              Làm lại toàn bộ
+            </button>
+          </div>
         </div>
       </main>
     );
@@ -238,7 +293,7 @@ export default function QuizPage({
                 "border-neutral-200 bg-white hover:border-neutral-400 hover:bg-neutral-50";
 
               if (showState && isCorrect) {
-                stateClass = "border-neutral-900 bg-neutral-900 text-white";
+                stateClass = "border-emerald-600 bg-emerald-600 text-white";
               }
 
               if (showState && isSelected && !isCorrect) {
@@ -255,6 +310,15 @@ export default function QuizPage({
 
                     if (isCorrect) {
                       setScore((s) => s + 1);
+                    } else {
+                      const wordObj = words.find((w) => w.term === q.term);
+                      if (wordObj) {
+                        setWrongWords((prev) =>
+                          prev.some((w) => w._id === wordObj._id)
+                            ? prev
+                            : [...prev, wordObj]
+                        );
+                      }
                     }
                   }}
                   className={`

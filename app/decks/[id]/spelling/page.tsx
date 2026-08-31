@@ -38,17 +38,23 @@ export default function SpellingPage({
 }) {
   const { id } = use(params);
 
-  const [words, setWords] = useState<Word[]>([]);
+  const [allWords, setAllWords] = useState<Word[]>([]);
+  const [practiceWords, setPracticeWords] = useState<Word[]>([]);
   const [idx, setIdx] = useState(0);
   const [input, setInput] = useState("");
   const [checked, setChecked] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
+  const [wrongWords, setWrongWords] = useState<Word[]>([]);
+  const [finished, setFinished] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch(`/api/decks/${id}/words`)
       .then((r) => r.json())
-      .then(setWords)
+      .then((data: Word[]) => {
+        setAllWords(data);
+        setPracticeWords(data);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -66,7 +72,7 @@ export default function SpellingPage({
   }
 
   // Empty state
-  if (!words.length) {
+  if (!allWords.length) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-4">
         <div className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
@@ -86,31 +92,146 @@ export default function SpellingPage({
     );
   }
 
-  const w = words[idx];
-
-  const isCorrect = checked && normalize(input) === normalize(w.term);
-
-  const progress = ((idx + 1) / words.length) * 100;
-
-  const hiddenExample = w.example
-    ? w.example.replace(new RegExp(w.term, "gi"), "_____")
-    : "";
-
   function handleCheck() {
     if (!input.trim()) return;
 
+    const w = practiceWords[idx];
     setChecked(true);
 
     if (normalize(input) === normalize(w.term)) {
       setCorrectCount((c) => c + 1);
+    } else {
+      setWrongWords((prev) =>
+        prev.some((x) => x._id === w._id) ? prev : [...prev, w]
+      );
     }
   }
 
   function handleNext() {
-    setIdx((i) => Math.min(words.length - 1, i + 1));
+    if (idx === practiceWords.length - 1) {
+      setFinished(true);
+    } else {
+      setIdx((i) => i + 1);
+    }
     setInput("");
     setChecked(false);
   }
+
+  function reviewWrong() {
+    setPracticeWords(wrongWords);
+    setWrongWords([]);
+    setIdx(0);
+    setCorrectCount(0);
+    setInput("");
+    setChecked(false);
+    setFinished(false);
+  }
+
+  function retryAll() {
+    setPracticeWords(allWords);
+    setWrongWords([]);
+    setIdx(0);
+    setCorrectCount(0);
+    setInput("");
+    setChecked(false);
+    setFinished(false);
+  }
+
+  // Finished screen
+  if (finished) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-4 py-8">
+        <div className="w-full max-w-lg rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-[0_8px_35px_rgba(0,0,0,0.05)] sm:p-10">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-400">
+            Spelling completed
+          </p>
+
+          <h1 className="mt-7 text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
+            Hoàn thành luyện chính tả
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-neutral-500">
+            Bạn đã viết đúng{" "}
+            <span className="font-semibold text-neutral-900">
+              {correctCount}
+            </span>{" "}
+            trên tổng số{" "}
+            <span className="font-semibold text-neutral-900">
+              {practiceWords.length}
+            </span>{" "}
+            từ.
+          </p>
+
+          {wrongWords.length > 0 && (
+            <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-left">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-red-500">
+                Từ viết sai ({wrongWords.length})
+              </p>
+
+              <div className="mt-3 space-y-2">
+                {wrongWords.map((w) => (
+                  <div
+                    key={w._id}
+                    className="rounded-xl border border-red-100 bg-white px-4 py-2.5"
+                  >
+                    <p className="text-sm font-semibold text-neutral-900">
+                      {w.term}
+                    </p>
+                    <p className="text-xs text-neutral-500">{w.meaning}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            {wrongWords.length > 0 && (
+              <button
+                type="button"
+                onClick={reviewWrong}
+                className="
+                  flex-1 rounded-xl
+                  bg-neutral-900 px-5 py-3.5
+                  text-sm font-medium text-white
+                  transition-all
+                  hover:bg-neutral-800
+                  hover:shadow-md
+                  active:scale-[0.99]
+                "
+              >
+                Ôn lại {wrongWords.length} từ sai
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={retryAll}
+              className="
+                flex-1 rounded-xl
+                border border-neutral-200 bg-white px-5 py-3.5
+                text-sm font-medium text-neutral-700
+                transition-all
+                hover:border-neutral-400 hover:bg-neutral-50
+                active:scale-[0.99]
+              "
+            >
+              Làm lại toàn bộ
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const w = practiceWords[idx];
+
+  const isCorrect = checked && normalize(input) === normalize(w.term);
+
+  const progress = ((idx + 1) / practiceWords.length) * 100;
+
+  const hiddenExample = w.example
+    ? w.example.replace(new RegExp(w.term, "gi"), "_____")
+    : "";
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 py-6 sm:px-6 sm:py-10">
@@ -147,7 +268,7 @@ export default function SpellingPage({
             </div>
 
             <span className="text-xs font-medium text-neutral-400">
-              {idx + 1}/{words.length}
+              {idx + 1}/{practiceWords.length}
             </span>
           </div>
         </header>
@@ -253,7 +374,7 @@ export default function SpellingPage({
                   rounded-2xl border p-5
                   ${
                     isCorrect
-                      ? "border-neutral-900 bg-neutral-900 text-white"
+                      ? "border-emerald-600 bg-emerald-600 text-white"
                       : "border-red-200 bg-red-50"
                   }
                 `}
@@ -287,7 +408,7 @@ export default function SpellingPage({
                     <p
                       className={`
                         mt-0.5 text-xs
-                        ${isCorrect ? "text-neutral-300" : "text-red-500"}
+                        ${isCorrect ? "text-emerald-100" : "text-red-500"}
                       `}
                     >
                       {isCorrect
@@ -360,7 +481,9 @@ export default function SpellingPage({
                   active:scale-[0.99]
                 "
               >
-                {idx === words.length - 1 ? "Hoàn thành →" : "Từ tiếp theo →"}
+                {idx === practiceWords.length - 1
+                  ? "Hoàn thành →"
+                  : "Từ tiếp theo →"}
               </button>
             </div>
           )}
