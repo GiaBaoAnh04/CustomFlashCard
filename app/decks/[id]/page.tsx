@@ -1,4 +1,9 @@
 import Link from "next/link";
+import { auth } from "@/auth";
+import { connectDB } from "@/lib/mongodb";
+import Decks from "@/models/Decks";
+import DeleteDeckButton from "@/components/DeleteDeckButton";
+import LogoutButton from "@/components/LogoutButton";
 
 export default async function DeckHomePage({
   params,
@@ -6,6 +11,30 @@ export default async function DeckHomePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-4">
+        <p className="text-sm text-neutral-500">
+          Vui lòng đăng nhập để xem bộ từ vựng này.
+        </p>
+      </main>
+    );
+  }
+
+  await connectDB();
+  const deck = await Decks.findOne({ _id: id, userId: session.user.id });
+
+  if (!deck) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-4">
+        <p className="text-sm text-neutral-500">
+          Không tìm thấy bộ từ vựng, hoặc bạn không có quyền xem.
+        </p>
+      </main>
+    );
+  }
 
   const modes = [
     {
@@ -44,18 +73,24 @@ export default async function DeckHomePage({
     <main className="min-h-screen bg-[#F7F7F5] px-4 py-8 sm:px-6 sm:py-12">
       <div className="mx-auto w-full max-w-4xl">
         {/* Header */}
-        <div className="mb-8 sm:mb-10">
-          <p className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">
-            Learning modes
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4 sm:mb-10">
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">
+              Learning modes · {deck.language === "ko" ? "Korean" : "English"}
+            </p>
 
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
-            Chọn chế độ học
-          </h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
+              {deck.name}
+            </h1>
 
-          <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-500 sm:text-base">
-            Chọn phương pháp phù hợp để bắt đầu ôn tập và ghi nhớ từ vựng.
-          </p>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-500 sm:text-base">
+              Chọn phương pháp phù hợp để bắt đầu ôn tập và ghi nhớ từ vựng.
+            </p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <LogoutButton />
+          </div>
         </div>
 
         {/* Learning modes */}

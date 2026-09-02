@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 interface Word {
   _id: string;
@@ -31,12 +31,21 @@ export default function PunishPage({
   const [checked, setChecked] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     fetch(`/api/decks/${id}/words`)
       .then((r) => r.json())
       .then(setWords)
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Tự focus lại vào ô input mỗi khi bắt đầu round mới
+  useEffect(() => {
+    if (!setup && !checked) {
+      inputRef.current?.focus();
+    }
+  }, [round, checked, setup]);
 
   function startPractice(e: React.FormEvent) {
     e.preventDefault();
@@ -249,7 +258,7 @@ export default function PunishPage({
 
           <div className="mt-7">
             <input
-              autoFocus
+              ref={inputRef}
               autoComplete="off"
               spellCheck={false}
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-5 py-4 text-lg font-medium text-neutral-900 outline-none focus:border-neutral-900 focus:bg-white focus:ring-4 focus:ring-neutral-900/5 disabled:bg-neutral-100"

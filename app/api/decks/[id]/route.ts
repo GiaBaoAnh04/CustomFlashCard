@@ -14,8 +14,6 @@ export async function GET(
   }
 
   await connectDB();
-
-  // đảm bảo deck này thuộc về user đang đăng nhập
   const deck = await Decks.findOne({ _id: id, userId: session.user.id });
   if (!deck) {
     return Response.json(
@@ -23,18 +21,10 @@ export async function GET(
       { status: 404 }
     );
   }
-
-  const words = await Word.find({ deckId: id }).sort({ createdAt: 1 });
-  return Response.json(words);
+  return Response.json(deck);
 }
 
-interface ImportWord {
-  term: string;
-  meaning: string;
-  example?: string;
-}
-
-export async function POST(
+export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -46,6 +36,7 @@ export async function POST(
 
   await connectDB();
 
+  // chỉ cho xoá nếu deck thuộc về user đang đăng nhập
   const deck = await Decks.findOne({ _id: id, userId: session.user.id });
   if (!deck) {
     return Response.json(
@@ -54,20 +45,9 @@ export async function POST(
     );
   }
 
-  const { words }: { words: ImportWord[] } = await req.json();
+  // xoá toàn bộ từ vựng thuộc deck này trước, tránh dữ liệu mồ côi
+  await Word.deleteMany({ deckId: id });
+  await Decks.deleteOne({ _id: id });
 
-  if (!Array.isArray(words) || !words.length) {
-    return Response.json({ error: "Không có từ nào để lưu" }, { status: 400 });
-  }
-
-  const docs = words.map((w) => ({
-    deckId: id,
-    term: w.term,
-    meaning: w.meaning,
-    example: w.example || "",
-    status: "new" as const,
-  }));
-
-  const result = await Word.insertMany(docs);
-  return Response.json({ inserted: result.length });
+  return Response.json({ deleted: true });
 }

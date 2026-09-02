@@ -1,12 +1,17 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { speak } from "@/lib/speak";
 
 interface Word {
   _id: string;
   term: string;
   meaning: string;
   example: string;
+}
+
+interface Deck {
+  language: "en" | "ko";
 }
 
 export default function FlashcardPage({
@@ -17,14 +22,20 @@ export default function FlashcardPage({
   const { id } = use(params);
 
   const [words, setWords] = useState<Word[]>([]);
+  const [deck, setDeck] = useState<Deck | null>(null);
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/decks/${id}/words`)
-      .then((r) => r.json())
-      .then((data) => setWords(data))
+    Promise.all([
+      fetch(`/api/decks/${id}`).then((r) => r.json()),
+      fetch(`/api/decks/${id}/words`).then((r) => r.json()),
+    ])
+      .then(([deckData, wordsData]) => {
+        setDeck(deckData);
+        setWords(wordsData);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -60,6 +71,7 @@ export default function FlashcardPage({
   }
 
   const w = words[idx];
+  const lang = deck?.language ?? "en";
   const progress = ((idx + 1) / words.length) * 100;
 
   const previousWord = () => {
@@ -74,6 +86,11 @@ export default function FlashcardPage({
 
   const flipCard = () => {
     setFlipped((f) => !f);
+  };
+
+  const handleSpeak = (e: React.MouseEvent) => {
+    e.stopPropagation(); // không cho lật thẻ khi bấm nút loa
+    speak(w.term, lang);
   };
 
   return (
@@ -149,9 +166,54 @@ export default function FlashcardPage({
                 Vocabulary
               </span>
 
-              <h2 className="max-w-2xl break-words text-3xl font-semibold tracking-tight text-neutral-900 sm:text-5xl">
-                {w.term}
-              </h2>
+              <div className="flex max-w-2xl items-center gap-3">
+                <h2 className="break-words text-3xl font-semibold tracking-tight text-neutral-900 sm:text-5xl">
+                  {w.term}
+                </h2>
+
+                {/* Nút loa */}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Đọc từ"
+                  onClick={handleSpeak}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleSpeak(e as unknown as React.MouseEvent);
+                    }
+                  }}
+                  className="
+                    flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center
+                    rounded-full border border-neutral-200 bg-white text-neutral-500
+                    transition-all hover:border-neutral-400 hover:text-neutral-900
+                    active:scale-95
+                  "
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-4 w-4"
+                  >
+                    <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+                    <path
+                      d="M15.5 8.5a5 5 0 0 1 0 7"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      fill="none"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M18 6a9 9 0 0 1 0 12"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      fill="none"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </span>
+              </div>
 
               {w.example && (
                 <p className="mt-8 max-w-xl text-sm italic leading-7 text-neutral-500 sm:text-base">
@@ -247,7 +309,7 @@ export default function FlashcardPage({
 
         {/* Keyboard hint */}
         <p className="mt-5 text-center text-xs text-neutral-400">
-          Nhấn vào thẻ để lật • Dùng ← → để chuyển từ
+          Nhấn vào thẻ để lật • Dùng ← → để chuyển từ • Bấm 🔊 để nghe phát âm
         </p>
       </div>
     </main>

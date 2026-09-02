@@ -25,6 +25,63 @@ function parseLines(text: string): ParsedWord[] {
     })
     .filter((w) => w.term);
 }
+async function extractTextFromPdf(file: File): Promise<string> {
+  const pdfjsLib = await import("pdfjs-dist");
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+  let text = "";
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+
+    let line = "";
+    for (const item of content.items) {
+      if (!("str" in item)) continue; // bỏ qua TextMarkedContent, chỉ giữ TextItem
+
+      line += item.str;
+      if (item.hasEOL) {
+        text += line + "\n";
+        line = "";
+      } else if (item.str) {
+        line += " ";
+      }
+    }
+    if (line.trim()) text += line + "\n";
+  }
+
+  return text;
+}
+
+async function extractTextFromDocx(file: File): Promise<string> {
+  const mammoth = await import("mammoth");
+  const buffer = await file.arrayBuffer();
+  const { value } = await mammoth.extractRawText({ arrayBuffer: buffer });
+  return value;
+}
+
+async function extractText(file: File): Promise<string> {
+  const ext = file.name.split(".").pop()?.toLowerCase();
+
+  switch (ext) {
+    case "txt":
+      return file.text();
+    case "pdf":
+      return extractTextFromPdf(file);
+    case "docx":
+      return extractTextFromDocx(file);
+    case "doc":
+      throw new Error(
+        "File .doc (Word 97-2003) chưa được hỗ trợ. Vui lòng lưu lại dưới dạng .docx hoặc .txt rồi thử lại."
+      );
+    default:
+      throw new Error("Định dạng file không được hỗ trợ.");
+  }
+}
 
 export default function ImportPage({
   params,
@@ -36,36 +93,41 @@ export default function ImportPage({
   const [words, setWords] = useState<ParsedWord[]>([]);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
+  const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const router = useRouter();
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
     setFileName(file.name);
+    setError("");
+    setWords([]);
+    setExtracting(true);
 
-    const reader = new FileReader();
-
-    reader.onload = (evt) => {
-      const parsed = parseLines(String(evt.target?.result));
+    try {
+      const text = await extractText(file);
+      const parsed = parseLines(text);
 
       const bad = parsed.filter((w) => !w.meaning);
 
-      setError(
-        bad.length
-          ? `${bad.length} dòng thiếu nghĩa: ${bad
-              .map((w) => w.term)
-              .join(", ")}`
-          : ""
-      );
+      if (parsed.length === 0) {
+        setError("Không tìm thấy dữ liệu hợp lệ trong file.");
+      } else if (bad.length) {
+        setError(
+          `${bad.length} dòng thiếu nghĩa: ${bad.map((w) => w.term).join(", ")}`
+        );
+      }
 
       setWords(parsed);
-    };
-
-    reader.readAsText(file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể đọc file.");
+    } finally {
+      setExtracting(false);
+    }
   }
 
   async function handleSave() {
@@ -102,7 +164,8 @@ export default function ImportPage({
           </h1>
 
           <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-500 sm:text-base">
-            Thêm nhiều từ vựng cùng lúc bằng cách tải lên file .txt.
+            Thêm nhiều từ vựng cùng lúc bằng cách tải lên file .txt, .pdf hoặc
+            .docx.
           </p>
         </header>
 
@@ -121,7 +184,7 @@ export default function ImportPage({
                 </p>
 
                 <p className="mt-1 text-sm leading-6 text-neutral-500">
-                  Mỗi dòng tương ứng với một từ vựng.
+                  Mỗi dòng tương ứng với một từ vựng. Hỗ trợ .txt, .pdf, .docx.
                 </p>
 
                 <code className="mt-3 inline-block rounded-lg bg-white px-3 py-2 text-xs text-neutral-700 shadow-sm">
@@ -134,7 +197,7 @@ export default function ImportPage({
           {/* Upload area */}
           <label
             htmlFor="file-upload"
-            className="
+            className={`
               group flex min-h-[190px]
               cursor-pointer flex-col
               items-center justify-center
@@ -146,7 +209,8 @@ export default function ImportPage({
               transition-all duration-300
               hover:border-neutral-500
               hover:bg-neutral-50
-            "
+              ${extracting ? "pointer-events-none opacity-60" : ""}
+            `}
           >
             <div
               className="
@@ -160,22 +224,29 @@ export default function ImportPage({
                 group-hover:-translate-y-1
               "
             >
-              ↑
+              {extracting ? "…" : "↑"}
             </div>
 
             <p className="mt-4 text-sm font-medium text-neutral-900">
-              {fileName || "Chọn file từ vựng"}
+              {extracting
+                ? "Đang đọc file..."
+                : fileName || "Chọn file từ vựng"}
             </p>
 
             <p className="mt-1 text-xs text-neutral-400">
-              {fileName ? "File đã được chọn" : "Định dạng hỗ trợ: .txt"}
+              {extracting
+                ? "Vui lòng đợi trong giây lát"
+                : fileName
+                  ? "File đã được chọn"
+                  : "Định dạng hỗ trợ: .txt, .pdf, .docx"}
             </p>
 
             <input
               id="file-upload"
               type="file"
-              accept=".txt"
+              accept=".txt,.pdf,.docx"
               onChange={handleFile}
+              disabled={extracting}
               className="sr-only"
             />
           </label>

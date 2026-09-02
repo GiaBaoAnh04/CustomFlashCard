@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 interface Word {
   _id: string;
@@ -48,6 +48,8 @@ export default function SpellingPage({
   const [finished, setFinished] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     fetch(`/api/decks/${id}/words`)
       .then((r) => r.json())
@@ -57,6 +59,13 @@ export default function SpellingPage({
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Tự động focus vào ô nhập mỗi khi chuyển từ hoặc quay lại trạng thái chưa kiểm tra
+  useEffect(() => {
+    if (!loading && !finished) {
+      inputRef.current?.focus();
+    }
+  }, [idx, checked, loading, finished]);
 
   // Loading
   if (loading) {
@@ -303,7 +312,7 @@ export default function SpellingPage({
 
             <input
               id="spelling-input"
-              autoFocus
+              ref={inputRef}
               autoComplete="off"
               spellCheck={false}
               className="

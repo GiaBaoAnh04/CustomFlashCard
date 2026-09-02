@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import DeleteDeckButton from "@/components/DeleteDeckButton";
+import LogoutButton from "@/components/LogoutButton";
 
 interface Deck {
   _id: string;
@@ -56,19 +58,7 @@ export default function DecksPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="
-              shrink-0 rounded-xl border border-neutral-200
-              bg-white px-4 py-2.5
-              text-sm font-medium text-neutral-500
-              transition-all
-              hover:border-neutral-300 hover:text-neutral-900
-            "
-          >
-            Đăng xuất
-          </button>
+          <LogoutButton />
         </div>
 
         {/* New deck */}
@@ -126,9 +116,8 @@ export default function DecksPage() {
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {decks.map((d) => (
-              <Link
+              <div
                 key={d._id}
-                href={`/decks/${d._id}`}
                 className="
                   group relative overflow-hidden rounded-2xl
                   border border-neutral-200/80
@@ -141,8 +130,15 @@ export default function DecksPage() {
                   sm:p-6
                 "
               >
+                {/* Lớp phủ điều hướng — nằm dưới cùng, không lồng nút xoá bên trong */}
+                <Link
+                  href={`/decks/${d._id}`}
+                  className="absolute inset-0 z-0"
+                  aria-label={`Mở bộ từ ${d.name}`}
+                />
+
                 {/* Top row */}
-                <div className="flex items-start justify-between gap-4">
+                <div className="relative z-10 flex items-start justify-between gap-4">
                   <div
                     className="
                       flex h-12 w-12 shrink-0 items-center justify-center
@@ -156,20 +152,19 @@ export default function DecksPage() {
                     {d.language}
                   </div>
 
-                  <div
-                    className="
-                      text-lg text-neutral-300
-                      transition-all duration-300
-                      group-hover:translate-x-1
-                      group-hover:text-neutral-900
-                    "
-                  >
-                    →
+                  <div className="flex items-center gap-2">
+                    <DeleteDeckButton
+                      deckId={d._id}
+                      deckName={d.name}
+                      onDeleted={() =>
+                        setDecks((prev) => prev.filter((x) => x._id !== d._id))
+                      }
+                    />
                   </div>
                 </div>
 
                 {/* Content */}
-                <div className="mt-6">
+                <div className="relative z-10 pointer-events-none mt-6">
                   <h2 className="text-base font-semibold text-neutral-900 sm:text-lg">
                     {d.name}
                   </h2>
@@ -182,13 +177,13 @@ export default function DecksPage() {
                 {/* Bottom line */}
                 <div
                   className="
-                    absolute bottom-0 left-0 h-[2px] w-0
+                    pointer-events-none absolute bottom-0 left-0 h-[2px] w-0
                     bg-neutral-900
                     transition-all duration-300
                     group-hover:w-full
                   "
                 />
-              </Link>
+              </div>
             ))}
           </div>
         )}
