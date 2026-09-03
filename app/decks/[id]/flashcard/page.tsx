@@ -27,6 +27,9 @@ export default function FlashcardPage({
   const [flipped, setFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // true = mặt trước hiện nghĩa, mặt sau hiện từ vựng (đảo ngược mặc định)
+  const [isSwapped, setIsSwapped] = useState(false);
+
   // Dùng để xử lý swipe
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
@@ -61,6 +64,11 @@ export default function FlashcardPage({
     setFlipped((f) => !f);
   };
 
+  const toggleSwap = () => {
+    setIsSwapped((s) => !s);
+    setFlipped(false);
+  };
+
   // =========================
   // KEYBOARD SHORTCUTS
   // =========================
@@ -93,6 +101,12 @@ export default function FlashcardPage({
         case "Enter":
           e.preventDefault();
           flipCard();
+          break;
+
+        case "s":
+        case "S":
+          e.preventDefault();
+          toggleSwap();
           break;
 
         default:
@@ -210,6 +224,21 @@ export default function FlashcardPage({
   const lang = deck?.language ?? "en";
   const progress = ((idx + 1) / words.length) * 100;
 
+  // Nội dung mặt trước / mặt sau tùy theo isSwapped
+  const frontText = isSwapped ? w.meaning : w.term;
+  const backText = isSwapped ? w.term : w.meaning;
+  const frontTag = isSwapped ? "Meaning" : "Vocabulary";
+  const backTag = isSwapped ? "Vocabulary" : "Meaning";
+  const cornerBadge = flipped
+    ? isSwapped
+      ? "Word"
+      : "Meaning"
+    : isSwapped
+      ? "Meaning"
+      : "Word";
+  // Mặt nào đang hiện từ vựng gốc (w.term) thì mới cho phát âm + hiện ví dụ
+  const currentSideShowsTerm = flipped ? isSwapped : !isSwapped;
+
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-3xl">
@@ -229,12 +258,49 @@ export default function FlashcardPage({
               </h1>
             </div>
 
-            <div className="text-right">
-              <p className="text-xs text-neutral-400">Tiến độ</p>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-xs text-neutral-400">Tiến độ</p>
 
-              <p className="mt-1 text-sm font-semibold text-neutral-900">
-                {idx + 1} / {words.length}
-              </p>
+                <p className="mt-1 text-sm font-semibold text-neutral-900">
+                  {idx + 1} / {words.length}
+                </p>
+              </div>
+
+              {/* Nút xoay: đổi thứ tự hiển thị mặt trước/sau cho toàn bộ deck */}
+              <button
+                type="button"
+                onClick={toggleSwap}
+                aria-label="Đổi thứ tự mặt trước / mặt sau"
+                title="Đổi thứ tự mặt trước / mặt sau (S)"
+                className="
+                  flex h-9 w-9 shrink-0 items-center justify-center
+                  rounded-full border border-neutral-200
+                  bg-white text-neutral-500
+                  transition-all
+                  hover:border-neutral-400
+                  hover:text-neutral-900
+                  active:scale-95
+                "
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`h-4 w-4 transition-transform duration-300 ${
+                    isSwapped ? "rotate-180" : ""
+                  }`}
+                >
+                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                  <path d="M21 3v5h-5" />
+                  <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                  <path d="M3 21v-5h5" />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -258,7 +324,7 @@ export default function FlashcardPage({
           onClick={flipCard}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
-          aria-label={flipped ? "Xem từ vựng" : "Xem nghĩa"}
+          aria-label={flipped ? "Xem mặt trước" : "Xem mặt sau"}
           className="
             group relative flex min-h-[360px] w-full
             cursor-pointer touch-pan-y
@@ -286,7 +352,7 @@ export default function FlashcardPage({
 
           {/* Flip indicator */}
           <div className="absolute right-5 top-5 rounded-full border border-neutral-200 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-neutral-400 transition-colors group-hover:border-neutral-400 group-hover:text-neutral-600">
-            {flipped ? "Meaning" : "Word"}
+            {cornerBadge}
           </div>
 
           {/* =========================
@@ -296,73 +362,81 @@ export default function FlashcardPage({
           {!flipped ? (
             <>
               <span className="mb-5 text-xs font-medium uppercase tracking-[0.2em] text-neutral-400">
-                Vocabulary
+                {frontTag}
               </span>
 
               <div className="flex max-w-2xl items-center gap-3">
-                <h2 className="break-words text-3xl font-semibold tracking-tight text-neutral-900 sm:text-5xl">
-                  {w.term}
+                <h2
+                  className={
+                    currentSideShowsTerm
+                      ? "break-words text-3xl font-semibold tracking-tight text-neutral-900 sm:text-5xl"
+                      : "max-w-2xl text-2xl font-medium leading-relaxed text-neutral-900 sm:text-4xl"
+                  }
+                >
+                  {frontText}
                 </h2>
 
-                {/* Speaker */}
-                <span
-                  role="button"
-                  tabIndex={0}
-                  aria-label="Đọc từ"
-                  onClick={handleSpeak}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
+                {/* Speaker: chỉ hiện ở mặt đang show từ vựng gốc */}
+                {currentSideShowsTerm && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Đọc từ"
+                    onClick={handleSpeak}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
 
-                      handleSpeak(e as unknown as React.MouseEvent);
-                    }
-                  }}
-                  className="
-                    flex h-9 w-9 shrink-0 cursor-pointer
-                    items-center justify-center
-                    rounded-full border border-neutral-200
-                    bg-white text-neutral-500
-                    transition-all
-                    hover:border-neutral-400
-                    hover:text-neutral-900
-                    active:scale-95
-                  "
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="h-4 w-4"
+                        handleSpeak(e as unknown as React.MouseEvent);
+                      }
+                    }}
+                    className="
+                      flex h-9 w-9 shrink-0 cursor-pointer
+                      items-center justify-center
+                      rounded-full border border-neutral-200
+                      bg-white text-neutral-500
+                      transition-all
+                      hover:border-neutral-400
+                      hover:text-neutral-900
+                      active:scale-95
+                    "
                   >
-                    <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-4 w-4"
+                    >
+                      <path d="M11 5 6 9H2v6h4l5 4V5Z" />
 
-                    <path
-                      d="M15.5 8.5a5 5 0 0 1 0 7"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      fill="none"
-                      strokeLinecap="round"
-                    />
+                      <path
+                        d="M15.5 8.5a5 5 0 0 1 0 7"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        fill="none"
+                        strokeLinecap="round"
+                      />
 
-                    <path
-                      d="M18 6a9 9 0 0 1 0 12"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      fill="none"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </span>
+                      <path
+                        d="M18 6a9 9 0 0 1 0 12"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        fill="none"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>
+                )}
               </div>
 
-              {w.example && (
+              {currentSideShowsTerm && w.example && (
                 <p className="mt-8 max-w-xl text-sm italic leading-7 text-neutral-500 sm:text-base">
                   “{w.example}”
                 </p>
               )}
 
               <div className="absolute bottom-6 left-0 right-0 text-xs text-neutral-300 transition-colors group-hover:text-neutral-500">
-                Click / Space để xem nghĩa
+                Click / Space để xem {backTag === "Meaning" ? "nghĩa" : "từ"}
               </div>
             </>
           ) : (
@@ -372,15 +446,80 @@ export default function FlashcardPage({
 
             <>
               <span className="mb-5 text-xs font-medium uppercase tracking-[0.2em] text-neutral-400">
-                Meaning
+                {backTag}
               </span>
 
-              <h2 className="max-w-2xl text-2xl font-medium leading-relaxed text-neutral-900 sm:text-4xl">
-                {w.meaning}
-              </h2>
+              <div className="flex max-w-2xl items-center gap-3">
+                <h2
+                  className={
+                    currentSideShowsTerm
+                      ? "break-words text-3xl font-semibold tracking-tight text-neutral-900 sm:text-5xl"
+                      : "max-w-2xl text-2xl font-medium leading-relaxed text-neutral-900 sm:text-4xl"
+                  }
+                >
+                  {backText}
+                </h2>
+
+                {currentSideShowsTerm && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Đọc từ"
+                    onClick={handleSpeak}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+
+                        handleSpeak(e as unknown as React.MouseEvent);
+                      }
+                    }}
+                    className="
+                      flex h-9 w-9 shrink-0 cursor-pointer
+                      items-center justify-center
+                      rounded-full border border-neutral-200
+                      bg-white text-neutral-500
+                      transition-all
+                      hover:border-neutral-400
+                      hover:text-neutral-900
+                      active:scale-95
+                    "
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-4 w-4"
+                    >
+                      <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+
+                      <path
+                        d="M15.5 8.5a5 5 0 0 1 0 7"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        fill="none"
+                        strokeLinecap="round"
+                      />
+
+                      <path
+                        d="M18 6a9 9 0 0 1 0 12"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        fill="none"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>
+                )}
+              </div>
+
+              {currentSideShowsTerm && w.example && (
+                <p className="mt-8 max-w-xl text-sm italic leading-7 text-neutral-500 sm:text-base">
+                  “{w.example}”
+                </p>
+              )}
 
               <div className="absolute bottom-6 left-0 right-0 text-xs text-neutral-300 transition-colors group-hover:text-neutral-500">
-                Click / Space để xem từ
+                Click / Space để xem {frontTag === "Meaning" ? "nghĩa" : "từ"}
               </div>
             </>
           )}
@@ -433,7 +572,9 @@ export default function FlashcardPage({
               sm:flex-none sm:min-w-[140px]
             "
           >
-            {flipped ? "Xem từ" : "Xem nghĩa"}
+            {flipped
+              ? `Xem ${frontTag === "Meaning" ? "nghĩa" : "từ"}`
+              : `Xem ${backTag === "Meaning" ? "nghĩa" : "từ"}`}
           </button>
 
           {/* Next */}
@@ -488,6 +629,15 @@ export default function FlashcardPage({
               Space
             </kbd>{" "}
             Lật thẻ
+          </span>
+
+          <span className="text-neutral-200">•</span>
+
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              S
+            </kbd>{" "}
+            Đổi mặt trước/sau
           </span>
         </div>
 
