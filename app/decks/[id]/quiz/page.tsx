@@ -56,6 +56,10 @@ export default function QuizPage({
   const [wrongWords, setWrongWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // =========================
+  // LOAD WORDS
+  // =========================
+
   useEffect(() => {
     fetch(`/api/decks/${id}/words`)
       .then((r) => r.json())
@@ -66,20 +70,152 @@ export default function QuizPage({
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Loading
+  // =========================
+  // ANSWER QUESTION
+  // =========================
+
+  function answerQuestion(option: string) {
+    // Không cho chọn lại sau khi đã trả lời
+    if (answered !== null) return;
+
+    const q = questions[qIdx];
+
+    if (!q) return;
+
+    const isCorrect = option === q.correct;
+
+    setAnswered(option);
+
+    if (isCorrect) {
+      setScore((s) => s + 1);
+    } else {
+      const wordObj = words.find((w) => w.term === q.term);
+
+      if (wordObj) {
+        setWrongWords((prev) =>
+          prev.some((w) => w._id === wordObj._id) ? prev : [...prev, wordObj]
+        );
+      }
+    }
+  }
+
+  // =========================
+  // NEXT QUESTION
+  // =========================
+
+  function nextQuestion() {
+    if (answered === null) return;
+
+    setQIdx((i) => i + 1);
+    setAnswered(null);
+  }
+
+  // =========================
+  // KEYBOARD SHORTCUTS
+  // =========================
+
+  useEffect(() => {
+    function handleKeyboard(e: KeyboardEvent) {
+      // Nếu đang nhập text thì không xử lý shortcut
+      const target = e.target as HTMLElement | null;
+
+      if (
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      // =========================
+      // 1 / 2 / 3 / 4
+      // Chọn đáp án
+      // =========================
+
+      if (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "4") {
+        e.preventDefault();
+
+        // Không cho chọn nếu đã trả lời
+        if (answered !== null) return;
+
+        const optionIndex = Number(e.key) - 1;
+        const q = questions[qIdx];
+
+        if (!q || !q.options[optionIndex]) return;
+
+        answerQuestion(q.options[optionIndex]);
+
+        return;
+      }
+
+      // =========================
+      // A / B / C / D
+      // Chọn đáp án
+      // =========================
+
+      const key = e.key.toLowerCase();
+
+      if (key === "a" || key === "b" || key === "c" || key === "d") {
+        e.preventDefault();
+
+        if (answered !== null) return;
+
+        const optionIndex = key.charCodeAt(0) - "a".charCodeAt(0);
+
+        const q = questions[qIdx];
+
+        if (!q || !q.options[optionIndex]) return;
+
+        answerQuestion(q.options[optionIndex]);
+
+        return;
+      }
+
+      // =========================
+      // ENTER
+      // Sang câu tiếp theo
+      // =========================
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+
+        if (answered !== null) {
+          nextQuestion();
+        }
+
+        return;
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyboard);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyboard);
+    };
+  }, [answered, qIdx, questions, words]);
+
+  // =========================
+  // LOADING
+  // =========================
+
   if (loading) {
     return (
       <main className="min-h-screen bg-[#F7F7F5] px-4 py-8">
         <div className="mx-auto max-w-2xl">
           <div className="h-5 w-24 animate-pulse rounded bg-neutral-200" />
+
           <div className="mt-6 h-8 w-48 animate-pulse rounded bg-neutral-200" />
+
           <div className="mt-8 h-[420px] animate-pulse rounded-3xl bg-white" />
         </div>
       </main>
     );
   }
 
-  // Empty state
+  // =========================
+  // EMPTY STATE
+  // =========================
+
   if (!words.length) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-4">
@@ -100,9 +236,13 @@ export default function QuizPage({
     );
   }
 
-  // Result
+  // =========================
+  // RESULT
+  // =========================
+
   if (qIdx >= questions.length) {
-    const percentage = Math.round((score / questions.length) * 100);
+    const percentage =
+      questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
 
     function reviewWrong() {
       setQuestions(buildQuestions(wrongWords, words));
@@ -150,6 +290,7 @@ export default function QuizPage({
           <div className="mt-8 grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-neutral-50 p-4">
               <p className="text-xs text-neutral-400">Điểm số</p>
+
               <p className="mt-1 text-xl font-semibold text-neutral-900">
                 {score}
               </p>
@@ -157,13 +298,14 @@ export default function QuizPage({
 
             <div className="rounded-2xl bg-neutral-50 p-4">
               <p className="text-xs text-neutral-400">Tổng câu</p>
+
               <p className="mt-1 text-xl font-semibold text-neutral-900">
                 {questions.length}
               </p>
             </div>
           </div>
 
-          {/* Wrong answers list */}
+          {/* Wrong answers */}
           {wrongWords.length > 0 && (
             <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-left">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-red-500">
@@ -179,6 +321,7 @@ export default function QuizPage({
                     <p className="text-sm font-semibold text-neutral-900">
                       {w.term}
                     </p>
+
                     <p className="text-xs text-neutral-500">{w.meaning}</p>
                   </div>
                 ))}
@@ -213,7 +356,8 @@ export default function QuizPage({
                 border border-neutral-200 bg-white px-5 py-3.5
                 text-sm font-medium text-neutral-700
                 transition-all
-                hover:border-neutral-400 hover:bg-neutral-50
+                hover:border-neutral-400
+                hover:bg-neutral-50
                 active:scale-[0.99]
               "
             >
@@ -225,6 +369,10 @@ export default function QuizPage({
     );
   }
 
+  // =========================
+  // CURRENT QUESTION
+  // =========================
+
   const q = questions[qIdx];
 
   const progress = ((qIdx + 1) / questions.length) * 100;
@@ -232,7 +380,10 @@ export default function QuizPage({
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-2xl">
-        {/* Header */}
+        {/* =========================
+            HEADER
+        ========================= */}
+
         <header className="mb-7">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -259,7 +410,9 @@ export default function QuizPage({
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-neutral-200">
               <div
                 className="h-full rounded-full bg-neutral-900 transition-all duration-300"
-                style={{ width: `${progress}%` }}
+                style={{
+                  width: `${progress}%`,
+                }}
               />
             </div>
 
@@ -269,7 +422,10 @@ export default function QuizPage({
           </div>
         </header>
 
-        {/* Question card */}
+        {/* =========================
+            QUESTION CARD
+        ========================= */}
+
         <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-[0_4px_25px_rgba(0,0,0,0.04)] sm:p-8">
           {/* Question */}
           <div className="border-b border-neutral-100 pb-7 text-center">
@@ -282,11 +438,16 @@ export default function QuizPage({
             </h2>
           </div>
 
-          {/* Options */}
+          {/* =========================
+              OPTIONS
+          ========================= */}
+
           <div className="mt-7 space-y-3">
             {q.options.map((opt, index) => {
               const isCorrect = opt === q.correct;
+
               const isSelected = opt === answered;
+
               const showState = answered !== null;
 
               let stateClass =
@@ -305,22 +466,7 @@ export default function QuizPage({
                   key={`${opt}-${index}`}
                   type="button"
                   disabled={showState}
-                  onClick={() => {
-                    setAnswered(opt);
-
-                    if (isCorrect) {
-                      setScore((s) => s + 1);
-                    } else {
-                      const wordObj = words.find((w) => w.term === q.term);
-                      if (wordObj) {
-                        setWrongWords((prev) =>
-                          prev.some((w) => w._id === wordObj._id)
-                            ? prev
-                            : [...prev, wordObj]
-                        );
-                      }
-                    }
-                  }}
+                  onClick={() => answerQuestion(opt)}
                   className={`
                     group flex w-full items-center gap-4
                     rounded-2xl border p-4
@@ -330,13 +476,12 @@ export default function QuizPage({
                     ${stateClass}
                   `}
                 >
-                  {/* Option number */}
+                  {/* Number */}
                   <span
                     className={`
                       flex h-9 w-9 shrink-0
                       items-center justify-center
-                      rounded-xl
-                      border
+                      rounded-xl border
                       text-xs font-semibold
                       ${
                         showState && isCorrect
@@ -347,7 +492,7 @@ export default function QuizPage({
                       }
                     `}
                   >
-                    {String.fromCharCode(65 + index)}
+                    {index + 1}
                   </span>
 
                   {/* Answer */}
@@ -366,7 +511,10 @@ export default function QuizPage({
             })}
           </div>
 
-          {/* Next button */}
+          {/* =========================
+              NEXT
+          ========================= */}
+
           {answered !== null && (
             <div className="mt-6">
               <div className="mb-4 rounded-xl bg-neutral-50 px-4 py-3 text-center text-xs text-neutral-500">
@@ -377,10 +525,7 @@ export default function QuizPage({
 
               <button
                 type="button"
-                onClick={() => {
-                  setQIdx((i) => i + 1);
-                  setAnswered(null);
-                }}
+                onClick={nextQuestion}
                 className="
                   w-full rounded-xl
                   bg-neutral-900
@@ -397,13 +542,65 @@ export default function QuizPage({
                   ? "Xem kết quả"
                   : "Câu tiếp theo →"}
               </button>
+
+              {/* Enter hint */}
+              <p className="mt-3 text-center text-xs text-neutral-400">
+                Nhấn{" "}
+                <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+                  Enter
+                </kbd>{" "}
+                để tiếp tục
+              </p>
             </div>
           )}
         </section>
 
-        {/* Hint */}
-        <p className="mt-5 text-center text-xs text-neutral-400">
-          Chọn một đáp án để kiểm tra kết quả
+        {/* =========================
+            KEYBOARD SHORTCUTS
+        ========================= */}
+
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-neutral-400">
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              1
+            </kbd>{" "}
+            A
+          </span>
+
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              2
+            </kbd>{" "}
+            B
+          </span>
+
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              3
+            </kbd>{" "}
+            C
+          </span>
+
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              4
+            </kbd>{" "}
+            D
+          </span>
+
+          <span className="text-neutral-200">•</span>
+
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              Enter
+            </kbd>{" "}
+            Tiếp tục
+          </span>
+        </div>
+
+        {/* Mobile hint */}
+        <p className="mt-3 text-center text-xs text-neutral-300 sm:hidden">
+          Chạm vào đáp án để chọn
         </p>
       </div>
     </main>

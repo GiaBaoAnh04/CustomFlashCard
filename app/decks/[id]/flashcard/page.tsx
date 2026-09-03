@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { speak } from "@/lib/speak";
 
 interface Word {
@@ -27,6 +27,10 @@ export default function FlashcardPage({
   const [flipped, setFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Dùng để xử lý swipe
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
   useEffect(() => {
     Promise.all([
       fetch(`/api/decks/${id}`).then((r) => r.json()),
@@ -39,16 +43,148 @@ export default function FlashcardPage({
       .finally(() => setLoading(false));
   }, [id]);
 
+  // =========================
+  // NAVIGATION
+  // =========================
+
+  const previousWord = () => {
+    setIdx((i) => Math.max(0, i - 1));
+    setFlipped(false);
+  };
+
+  const nextWord = () => {
+    setIdx((i) => Math.min(words.length - 1, i + 1));
+    setFlipped(false);
+  };
+
+  const flipCard = () => {
+    setFlipped((f) => !f);
+  };
+
+  // =========================
+  // KEYBOARD SHORTCUTS
+  // =========================
+
+  useEffect(() => {
+    function handleKeyboard(e: KeyboardEvent) {
+      // Không xử lý shortcut nếu người dùng đang nhập vào input/textarea
+      const target = e.target as HTMLElement | null;
+
+      if (
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case "ArrowLeft":
+          e.preventDefault();
+          previousWord();
+          break;
+
+        case "ArrowRight":
+          e.preventDefault();
+          nextWord();
+          break;
+
+        case " ":
+        case "Enter":
+          e.preventDefault();
+          flipCard();
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyboard);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyboard);
+    };
+  }, [words.length]);
+
+  // =========================
+  // SWIPE
+  // =========================
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLButtonElement>) => {
+    const touch = e.touches[0];
+
+    touchStartX.current = touch.clientX;
+    touchStartY.current = touch.clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLButtonElement>) => {
+    if (touchStartX.current === null || touchStartY.current === null) {
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+
+    const deltaX = touch.clientX - touchStartX.current;
+    const deltaY = touch.clientY - touchStartY.current;
+
+    // Reset
+    touchStartX.current = null;
+    touchStartY.current = null;
+
+    // Chỉ xem là swipe nếu chuyển động ngang lớn hơn dọc
+    const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+
+    // Khoảng cách tối thiểu để tính là swipe
+    const SWIPE_THRESHOLD = 60;
+
+    if (!isHorizontalSwipe || Math.abs(deltaX) < SWIPE_THRESHOLD) {
+      return;
+    }
+
+    // Vuốt trái → từ tiếp theo
+    if (deltaX < 0) {
+      nextWord();
+    }
+
+    // Vuốt phải → từ trước
+    if (deltaX > 0) {
+      previousWord();
+    }
+  };
+
+  // =========================
+  // SPEAK
+  // =========================
+
+  const handleSpeak = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const w = words[idx];
+    const lang = deck?.language ?? "en";
+
+    speak(w.term, lang);
+  };
+
+  // =========================
+  // LOADING
+  // =========================
+
   if (loading) {
     return (
       <main className="min-h-screen bg-[#F7F7F5] px-4 py-10">
         <div className="mx-auto max-w-3xl">
           <div className="h-5 w-24 animate-pulse rounded bg-neutral-200" />
+
           <div className="mt-8 h-[360px] animate-pulse rounded-3xl bg-white" />
         </div>
       </main>
     );
   }
+
+  // =========================
+  // EMPTY
+  // =========================
 
   if (!words.length) {
     return (
@@ -74,29 +210,13 @@ export default function FlashcardPage({
   const lang = deck?.language ?? "en";
   const progress = ((idx + 1) / words.length) * 100;
 
-  const previousWord = () => {
-    setIdx((i) => Math.max(0, i - 1));
-    setFlipped(false);
-  };
-
-  const nextWord = () => {
-    setIdx((i) => Math.min(words.length - 1, i + 1));
-    setFlipped(false);
-  };
-
-  const flipCard = () => {
-    setFlipped((f) => !f);
-  };
-
-  const handleSpeak = (e: React.MouseEvent) => {
-    e.stopPropagation(); // không cho lật thẻ khi bấm nút loa
-    speak(w.term, lang);
-  };
-
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-3xl">
-        {/* Header */}
+        {/* =========================
+            HEADER
+        ========================= */}
+
         <header className="mb-6 sm:mb-8">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -111,6 +231,7 @@ export default function FlashcardPage({
 
             <div className="text-right">
               <p className="text-xs text-neutral-400">Tiến độ</p>
+
               <p className="mt-1 text-sm font-semibold text-neutral-900">
                 {idx + 1} / {words.length}
               </p>
@@ -121,19 +242,27 @@ export default function FlashcardPage({
           <div className="mt-5 h-1 overflow-hidden rounded-full bg-neutral-200">
             <div
               className="h-full rounded-full bg-neutral-900 transition-all duration-300"
-              style={{ width: `${progress}%` }}
+              style={{
+                width: `${progress}%`,
+              }}
             />
           </div>
         </header>
 
-        {/* Flashcard */}
+        {/* =========================
+            FLASHCARD
+        ========================= */}
+
         <button
           type="button"
           onClick={flipCard}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
           aria-label={flipped ? "Xem từ vựng" : "Xem nghĩa"}
           className="
             group relative flex min-h-[360px] w-full
-            cursor-pointer flex-col items-center justify-center
+            cursor-pointer touch-pan-y
+            flex-col items-center justify-center
             overflow-hidden rounded-3xl
             border border-neutral-200
             bg-white px-6 py-12
@@ -160,6 +289,10 @@ export default function FlashcardPage({
             {flipped ? "Meaning" : "Word"}
           </div>
 
+          {/* =========================
+              FRONT
+          ========================= */}
+
           {!flipped ? (
             <>
               <span className="mb-5 text-xs font-medium uppercase tracking-[0.2em] text-neutral-400">
@@ -171,7 +304,7 @@ export default function FlashcardPage({
                   {w.term}
                 </h2>
 
-                {/* Nút loa */}
+                {/* Speaker */}
                 <span
                   role="button"
                   tabIndex={0}
@@ -180,13 +313,18 @@ export default function FlashcardPage({
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
+
                       handleSpeak(e as unknown as React.MouseEvent);
                     }
                   }}
                   className="
-                    flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center
-                    rounded-full border border-neutral-200 bg-white text-neutral-500
-                    transition-all hover:border-neutral-400 hover:text-neutral-900
+                    flex h-9 w-9 shrink-0 cursor-pointer
+                    items-center justify-center
+                    rounded-full border border-neutral-200
+                    bg-white text-neutral-500
+                    transition-all
+                    hover:border-neutral-400
+                    hover:text-neutral-900
                     active:scale-95
                   "
                 >
@@ -197,6 +335,7 @@ export default function FlashcardPage({
                     className="h-4 w-4"
                   >
                     <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+
                     <path
                       d="M15.5 8.5a5 5 0 0 1 0 7"
                       stroke="currentColor"
@@ -204,6 +343,7 @@ export default function FlashcardPage({
                       fill="none"
                       strokeLinecap="round"
                     />
+
                     <path
                       d="M18 6a9 9 0 0 1 0 12"
                       stroke="currentColor"
@@ -222,10 +362,14 @@ export default function FlashcardPage({
               )}
 
               <div className="absolute bottom-6 left-0 right-0 text-xs text-neutral-300 transition-colors group-hover:text-neutral-500">
-                Click để xem nghĩa
+                Click / Space để xem nghĩa
               </div>
             </>
           ) : (
+            /* =========================
+               BACK
+            ========================= */
+
             <>
               <span className="mb-5 text-xs font-medium uppercase tracking-[0.2em] text-neutral-400">
                 Meaning
@@ -236,14 +380,18 @@ export default function FlashcardPage({
               </h2>
 
               <div className="absolute bottom-6 left-0 right-0 text-xs text-neutral-300 transition-colors group-hover:text-neutral-500">
-                Click để xem từ
+                Click / Space để xem từ
               </div>
             </>
           )}
         </button>
 
-        {/* Controls */}
+        {/* =========================
+            CONTROLS
+        ========================= */}
+
         <div className="mt-6 flex items-center justify-between gap-3">
+          {/* Previous */}
           <button
             type="button"
             onClick={previousWord}
@@ -262,14 +410,17 @@ export default function FlashcardPage({
             "
           >
             <span className="text-lg">←</span>
+
             <span className="hidden sm:inline">Trước</span>
           </button>
 
+          {/* Flip */}
           <button
             type="button"
             onClick={flipCard}
             className="
-              flex h-12 flex-[1.5] items-center justify-center
+              flex h-12 flex-[1.5]
+              items-center justify-center
               rounded-xl
               bg-neutral-900
               px-6
@@ -285,6 +436,7 @@ export default function FlashcardPage({
             {flipped ? "Xem từ" : "Xem nghĩa"}
           </button>
 
+          {/* Next */}
           <button
             type="button"
             onClick={nextWord}
@@ -303,13 +455,45 @@ export default function FlashcardPage({
             "
           >
             <span className="hidden sm:inline">Tiếp</span>
+
             <span className="text-lg">→</span>
           </button>
         </div>
 
-        {/* Keyboard hint */}
-        <p className="mt-5 text-center text-xs text-neutral-400">
-          Nhấn vào thẻ để lật • Dùng ← → để chuyển từ • Bấm 🔊 để nghe phát âm
+        {/* =========================
+            KEYBOARD SHORTCUTS
+        ========================= */}
+
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-neutral-400">
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              ←
+            </kbd>{" "}
+            Từ trước
+          </span>
+
+          <span className="text-neutral-200">•</span>
+
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              →
+            </kbd>{" "}
+            Từ tiếp
+          </span>
+
+          <span className="text-neutral-200">•</span>
+
+          <span>
+            <kbd className="rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-medium text-neutral-500">
+              Space
+            </kbd>{" "}
+            Lật thẻ
+          </span>
+        </div>
+
+        {/* Mobile hint */}
+        <p className="mt-3 text-center text-xs text-neutral-300 sm:hidden">
+          Vuốt trái / phải để chuyển từ
         </p>
       </div>
     </main>

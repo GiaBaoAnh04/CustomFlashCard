@@ -67,40 +67,6 @@ export default function SpellingPage({
     }
   }, [idx, checked, loading, finished]);
 
-  // Loading
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-[#F7F7F5] px-4 py-8">
-        <div className="mx-auto max-w-2xl">
-          <div className="h-5 w-24 animate-pulse rounded bg-neutral-200" />
-          <div className="mt-6 h-8 w-52 animate-pulse rounded bg-neutral-200" />
-          <div className="mt-8 h-[400px] animate-pulse rounded-3xl bg-white" />
-        </div>
-      </main>
-    );
-  }
-
-  // Empty state
-  if (!allWords.length) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-4">
-        <div className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900 text-xl text-white">
-            Aa
-          </div>
-
-          <h1 className="mt-6 text-lg font-semibold text-neutral-900">
-            Chưa có từ vựng
-          </h1>
-
-          <p className="mt-2 text-sm leading-6 text-neutral-500">
-            Hãy import từ vựng trước khi bắt đầu luyện chính tả.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
   function handleCheck() {
     if (!input.trim()) return;
 
@@ -144,6 +110,75 @@ export default function SpellingPage({
     setInput("");
     setChecked(false);
     setFinished(false);
+  }
+
+  // Phím tắt: Enter để kiểm tra / chuyển từ tiếp theo, Esc để xóa ô nhập
+  // Ở màn hình hoàn thành: R = làm lại toàn bộ, W = ôn lại từ sai
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (loading) return;
+
+      if (finished) {
+        if (e.key.toLowerCase() === "r") {
+          e.preventDefault();
+          retryAll();
+        } else if (e.key.toLowerCase() === "w" && wrongWords.length > 0) {
+          e.preventDefault();
+          reviewWrong();
+        }
+        return;
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (!checked) {
+          if (input.trim()) handleCheck();
+        } else {
+          handleNext();
+        }
+      }
+
+      if (e.key === "Escape" && !checked) {
+        setInput("");
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [checked, input, finished, loading, idx, practiceWords, wrongWords]);
+
+  // Loading
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#F7F7F5] px-4 py-8">
+        <div className="mx-auto max-w-2xl">
+          <div className="h-5 w-24 animate-pulse rounded bg-neutral-200" />
+          <div className="mt-6 h-8 w-52 animate-pulse rounded bg-neutral-200" />
+          <div className="mt-8 h-[400px] animate-pulse rounded-3xl bg-white" />
+        </div>
+      </main>
+    );
+  }
+
+  // Empty state
+  if (!allWords.length) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-4">
+        <div className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900 text-xl text-white">
+            Aa
+          </div>
+
+          <h1 className="mt-6 text-lg font-semibold text-neutral-900">
+            Chưa có từ vựng
+          </h1>
+
+          <p className="mt-2 text-sm leading-6 text-neutral-500">
+            Hãy import từ vựng trước khi bắt đầu luyện chính tả.
+          </p>
+        </div>
+      </main>
+    );
   }
 
   // Finished screen
@@ -208,7 +243,8 @@ export default function SpellingPage({
                   active:scale-[0.99]
                 "
               >
-                Ôn lại {wrongWords.length} từ sai
+                Ôn lại {wrongWords.length} từ sai{" "}
+                <span className="text-neutral-400">(W)</span>
               </button>
             )}
 
@@ -224,7 +260,7 @@ export default function SpellingPage({
                 active:scale-[0.99]
               "
             >
-              Làm lại toàn bộ
+              Làm lại toàn bộ <span className="text-neutral-400">(R)</span>
             </button>
           </div>
         </div>
@@ -335,17 +371,12 @@ export default function SpellingPage({
               placeholder="Type the word..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !checked) {
-                  handleCheck();
-                }
-              }}
               disabled={checked}
             />
 
             {!checked && (
               <p className="mt-2 text-xs text-neutral-400">
-                Nhấn Enter để kiểm tra câu trả lời
+                Enter để kiểm tra · Esc để xóa ô nhập
               </p>
             )}
           </div>
@@ -500,7 +531,7 @@ export default function SpellingPage({
 
         {/* Footer */}
         <p className="mt-5 text-center text-xs text-neutral-400">
-          Gõ từ và nhấn Enter để kiểm tra
+          Enter để kiểm tra / sang từ tiếp theo · Esc để xóa
         </p>
       </div>
     </main>
