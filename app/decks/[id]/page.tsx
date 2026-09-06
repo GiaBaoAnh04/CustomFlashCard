@@ -55,19 +55,30 @@ export default async function DeckHomePage({
       title: "Trắc nghiệm",
       description: "Kiểm tra khả năng ghi nhớ qua các câu hỏi.",
     },
-    {
-      href: `/decks/${id}/spelling`,
-      icon: "Aa",
-      title: "Kiểm tra chính tả",
-      description: "Luyện viết và kiểm tra khả năng nhớ chính xác từ.",
-    },
-    {
-      href: `/decks/${id}/punish`,
-      icon: "✍",
-      title: "Chép phạt",
-      description: "Nhập từ cần học và số lần muốn chép để ghi nhớ.",
-    },
+    ...(deck.language !== "zh"
+      ? [
+          {
+            href: `/decks/${id}/spelling`,
+            icon: "Aa",
+            title: "Kiểm tra chính tả",
+            description: "Luyện viết và kiểm tra khả năng nhớ chính xác từ.",
+          },
+          {
+            href: `/decks/${id}/punish`,
+            icon: "✍",
+            title: "Chép phạt",
+            description: "Nhập từ cần học và số lần muốn chép để ghi nhớ.",
+          },
+        ]
+      : []),
   ];
+
+  const languageLabel =
+    deck.language === "ko"
+      ? "Korean"
+      : deck.language === "zh"
+        ? "Chinese"
+        : "English";
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 py-8 sm:px-6 sm:py-12">
@@ -76,7 +87,7 @@ export default async function DeckHomePage({
         <div className="mb-8 flex items-start justify-between gap-4 sm:mb-10">
           <div>
             <p className="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">
-              Learning modes · {deck.language === "ko" ? "Korean" : "English"}
+              Learning modes · {languageLabel}
             </p>
 
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">

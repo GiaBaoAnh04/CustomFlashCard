@@ -11,7 +11,7 @@ interface Word {
 }
 
 interface Deck {
-  language: "en" | "ko";
+  language: "en" | "ko" | "zh";
 }
 
 export default function FlashcardPage({
@@ -171,13 +171,26 @@ export default function FlashcardPage({
   // SPEAK
   // =========================
 
+  // Chỉ lấy phần chữ của ngôn ngữ đó, bỏ phần pinyin/nghĩa trong ngoặc
+  const getSpokenText = (text: string) => {
+    const idx = text.indexOf("(");
+    return (idx > -1 ? text.slice(0, idx) : text).trim();
+  };
+
   const handleSpeak = (e: React.MouseEvent) => {
     e.stopPropagation();
 
     const w = words[idx];
     const lang = deck?.language ?? "en";
 
-    speak(w.term, lang);
+    speak(getSpokenText(w.term), lang);
+  };
+
+  const handleSpeakExample = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const w = words[idx];
+    const lang = deck?.language ?? "en";
+    if (w.example) speak(getSpokenText(w.example), lang);
   };
 
   // =========================
@@ -430,9 +443,40 @@ export default function FlashcardPage({
               </div>
 
               {currentSideShowsTerm && w.example && (
-                <p className="mt-8 max-w-xl text-sm italic leading-7 text-neutral-500 sm:text-base">
-                  “{w.example}”
-                </p>
+                <div className="mt-8 flex max-w-xl items-center gap-2">
+                  <p className="text-sm italic leading-7 text-neutral-500 sm:text-base">
+                    “{w.example}”
+                  </p>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Đọc ví dụ"
+                    onClick={handleSpeakExample}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSpeakExample(e as unknown as React.MouseEvent);
+                      }
+                    }}
+                    className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-400 transition-all hover:border-neutral-400 hover:text-neutral-900 active:scale-95"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-3.5 w-3.5"
+                    >
+                      <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+                      <path
+                        d="M15.5 8.5a5 5 0 0 1 0 7"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        fill="none"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>
+                </div>
               )}
 
               <div className="absolute bottom-6 left-0 right-0 text-xs text-neutral-300 transition-colors group-hover:text-neutral-500">

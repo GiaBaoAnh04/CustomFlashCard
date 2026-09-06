@@ -29,7 +29,7 @@ function parseLines(text: string): ParsedWord[] {
 
 export default function NewDeckPage() {
   const [name, setName] = useState("");
-  const [language, setLanguage] = useState<"en" | "ko">("en");
+  const [language, setLanguage] = useState<"en" | "ko" | "zh">("en");
   const [saving, setSaving] = useState(false);
 
   const [words, setWords] = useState<ParsedWord[]>([]);
@@ -159,7 +159,7 @@ export default function NewDeckPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setLanguage("en")}
@@ -206,6 +206,30 @@ export default function NewDeckPage() {
                   </div>
                   <p className="mt-4 text-sm font-semibold">Tiếng Hàn</p>
                   <p className="mt-1 text-xs text-neutral-400">Korean</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLanguage("zh")}
+                  className={`
+      rounded-2xl border p-4 text-left transition-all duration-200
+      ${
+        language === "zh"
+          ? "border-neutral-900 bg-neutral-900 text-white shadow-sm"
+          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50"
+      }
+    `}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl">🇨🇳</span>
+                    {language === "zh" && (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-xs">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-4 text-sm font-semibold">Tiếng Trung</p>
+                  <p className="mt-1 text-xs text-neutral-400">Chinese</p>
                 </button>
               </div>
             </div>

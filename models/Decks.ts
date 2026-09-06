@@ -4,7 +4,7 @@ export interface IDeck {
   _id: string;
   userId: mongoose.Types.ObjectId;
   name: string;
-  language: "en" | "ko";
+  language: "en" | "ko" | "zh";
   createdAt: Date;
 }
 
@@ -12,7 +12,7 @@ const DeckSchema = new Schema<IDeck>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     name: { type: String, required: true },
-    language: { type: String, enum: ["en", "ko"], required: true },
+    language: { type: String, enum: ["en", "ko", "zh"], required: true },
   },
   { timestamps: true }
 );

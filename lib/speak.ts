@@ -27,12 +27,13 @@ function pickBestVoice(
   );
 }
 
-export async function speak(text: string, language: "en" | "ko") {
+export async function speak(text: string, language: "en" | "ko" | "zh") {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
 
   window.speechSynthesis.cancel();
 
-  const lang = language === "ko" ? "ko-KR" : "en-US";
+  const lang =
+    language === "ko" ? "ko-KR" : language === "zh" ? "zh-CN" : "en-US";
   const voices = voicesCache.length ? voicesCache : await loadVoices();
   const voice = pickBestVoice(voices, lang);
 
