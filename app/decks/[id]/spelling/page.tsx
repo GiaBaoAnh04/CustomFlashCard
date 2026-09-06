@@ -48,7 +48,26 @@ export default function SpellingPage({
   const [finished, setFinished] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Bắt viết lại đúng từ trước khi được sang từ tiếp theo
+  const [retypeInput, setRetypeInput] = useState("");
+
   const inputRef = useRef<HTMLInputElement>(null);
+  const retypeInputRef = useRef<HTMLInputElement>(null);
+
+  const currentWord = practiceWords[idx];
+  const isCorrect =
+    checked &&
+    !!currentWord &&
+    normalize(input) === normalize(currentWord.term);
+  // Dẫn xuất trực tiếp từ retypeInput, không cần state/effect riêng
+  const retypeCorrect =
+    checked &&
+    !isCorrect &&
+    !!currentWord &&
+    retypeInput.trim() !== "" &&
+    normalize(retypeInput) === normalize(currentWord.term);
+  // Đã được phép sang từ tiếp theo hay chưa
+  const canAdvance = checked && (isCorrect || retypeCorrect);
 
   useEffect(() => {
     fetch(`/api/decks/${id}/words`)
@@ -60,17 +79,21 @@ export default function SpellingPage({
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Tự động focus vào ô nhập mỗi khi chuyển từ hoặc quay lại trạng thái chưa kiểm tra
+  // Tự động focus: ô trả lời khi chưa kiểm tra, ô viết lại khi trả lời sai
   useEffect(() => {
-    if (!loading && !finished) {
+    if (loading || finished) return;
+
+    if (!checked) {
       inputRef.current?.focus();
+    } else if (!isCorrect && !retypeCorrect) {
+      retypeInputRef.current?.focus();
     }
-  }, [idx, checked, loading, finished]);
+  }, [idx, checked, loading, finished, isCorrect, retypeCorrect]);
 
   function handleCheck() {
-    if (!input.trim()) return;
+    if (!input.trim() || !currentWord) return;
 
-    const w = practiceWords[idx];
+    const w = currentWord;
     setChecked(true);
 
     if (normalize(input) === normalize(w.term)) {
@@ -83,6 +106,8 @@ export default function SpellingPage({
   }
 
   function handleNext() {
+    if (!checked || (!isCorrect && !retypeCorrect)) return;
+
     if (idx === practiceWords.length - 1) {
       setFinished(true);
     } else {
@@ -90,6 +115,7 @@ export default function SpellingPage({
     }
     setInput("");
     setChecked(false);
+    setRetypeInput("");
   }
 
   function reviewWrong() {
@@ -99,6 +125,7 @@ export default function SpellingPage({
     setCorrectCount(0);
     setInput("");
     setChecked(false);
+    setRetypeInput("");
     setFinished(false);
   }
 
@@ -109,6 +136,7 @@ export default function SpellingPage({
     setCorrectCount(0);
     setInput("");
     setChecked(false);
+    setRetypeInput("");
     setFinished(false);
   }
 
@@ -133,19 +161,34 @@ export default function SpellingPage({
         e.preventDefault();
         if (!checked) {
           if (input.trim()) handleCheck();
-        } else {
+        } else if (isCorrect || retypeCorrect) {
           handleNext();
         }
+        // Nếu đã kiểm tra, sai, và chưa viết lại đúng -> Enter không làm gì
       }
 
-      if (e.key === "Escape" && !checked) {
-        setInput("");
+      if (e.key === "Escape") {
+        if (!checked) {
+          setInput("");
+        } else if (!isCorrect && !retypeCorrect) {
+          setRetypeInput("");
+        }
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [checked, input, finished, loading, idx, practiceWords, wrongWords]);
+  }, [
+    checked,
+    input,
+    finished,
+    loading,
+    idx,
+    practiceWords,
+    wrongWords,
+    isCorrect,
+    retypeCorrect,
+  ]);
 
   // Loading
   if (loading) {
@@ -268,9 +311,7 @@ export default function SpellingPage({
     );
   }
 
-  const w = practiceWords[idx];
-
-  const isCorrect = checked && normalize(input) === normalize(w.term);
+  const w = currentWord;
 
   const progress = ((idx + 1) / practiceWords.length) * 100;
 
@@ -453,13 +494,13 @@ export default function SpellingPage({
                     >
                       {isCorrect
                         ? "Bạn đã viết đúng từ."
-                        : "Hãy xem lại cách viết bên dưới."}
+                        : "Hãy viết lại đúng từ bên dưới để tiếp tục."}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Correct answer */}
+              {/* Correct answer + retype */}
               {!isCorrect && (
                 <div className="mt-5 rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
                   <p className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-400">
@@ -502,6 +543,52 @@ export default function SpellingPage({
                       thiếu
                     </span>
                   </div>
+
+                  {/* Retype to unlock next */}
+                  <div className="mt-5 border-t border-neutral-200 pt-5">
+                    <label
+                      htmlFor="retype-input"
+                      className="mb-2 block text-sm font-medium text-neutral-700"
+                    >
+                      Viết lại từ cho đúng để tiếp tục
+                    </label>
+
+                    <input
+                      id="retype-input"
+                      ref={retypeInputRef}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className={`
+                        w-full rounded-2xl
+                        border
+                        px-5 py-4
+                        text-lg font-medium
+                        outline-none
+                        placeholder:text-neutral-300
+                        transition-all
+                        disabled:cursor-not-allowed
+                        ${
+                          retypeCorrect
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                            : "border-neutral-200 bg-white text-neutral-900 focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/5"
+                        }
+                      `}
+                      placeholder="Type the correct word..."
+                      value={retypeInput}
+                      onChange={(e) => setRetypeInput(e.target.value)}
+                      disabled={retypeCorrect}
+                    />
+
+                    <p
+                      className={`mt-2 text-xs ${
+                        retypeCorrect ? "text-emerald-600" : "text-neutral-400"
+                      }`}
+                    >
+                      {retypeCorrect
+                        ? "✓ Chính xác, giờ bạn có thể sang từ tiếp theo."
+                        : "Gõ đúng từ ở trên để mở khóa nút tiếp theo."}
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -509,6 +596,7 @@ export default function SpellingPage({
               <button
                 type="button"
                 onClick={handleNext}
+                disabled={!canAdvance}
                 className="
                   mt-6 w-full rounded-xl
                   bg-neutral-900
@@ -519,6 +607,8 @@ export default function SpellingPage({
                   hover:bg-neutral-800
                   hover:shadow-md
                   active:scale-[0.99]
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
                 "
               >
                 {idx === practiceWords.length - 1
